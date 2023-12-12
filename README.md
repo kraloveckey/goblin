@@ -25,7 +25,7 @@ Collection of writeup CTF Challenges (HackTheBox, TryHackMe etc.), hints, notes,
 |4. |[Keeper Linux](htb/HTB%20Keeper%20Linux%20Easy.md)|[Hospital Windows](htb/HTB%20Hospital%20Windows%20Medium.md)|[Ouija Linux](htb/HTB%20Ouija%20Linux%20Hard.md)|[]()|
 |5. |[Pilgrimage Linux](htb/HTB%20Pilgrimage%20Linux%20Easy.md)|[Zipping Linux](htb/HTB%20Zipping%20Linux%20Medium.md)|[]()|[]()|
 |6. |[Sau Linux](htb/HTB%20Sau%20Linux%20Easy.md)|[Visual Windows](htb/HTB%20Visual%20Windows%20Medium.md)|[]()|[]()|
-|7. |[Topology Linux](htb/HTB%20Topology%20Linux%20Easy.md)|[]()|[]()|[]()|
+|7. |[Topology Linux](htb/HTB%20Topology%20Linux%20Easy.md)|[Surveillance Linux](htb/HTB%20Surveillance%20Linux%20Medium.md)|[]()|[]()|
 |8. |[Codify Linux](htb/HTB%20Codify%20Linux%20Easy.md)|[]()|[]()|[]()|
 |9. |[Devvortex Linux](htb/HTB%20Devvortex%20Linux%20Easy.md)|[]()|[]()|[]()|
 |10. |[]()|[]()|[]()|[]()|
