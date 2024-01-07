@@ -28,7 +28,7 @@ Collection of writeup CTF Challenges (HackTheBox, TryHackMe etc.), hints, notes,
 |7. |[Topology Linux](htb/HTB%20Topology%20Linux%20Easy.md)|[Surveillance Linux](htb/HTB%20Surveillance%20Linux%20Medium.md)|[]()|[]()|
 |8. |[Codify Linux](htb/HTB%20Codify%20Linux%20Easy.md)|[]()|[]()|[]()|
 |9. |[Devvortex Linux](htb/HTB%20Devvortex%20Linux%20Easy.md)|[]()|[]()|[]()|
-|10. |[]()|[]()|[]()|[]()|
+|10. |[Bizness Linux](htb/HTB%20Bizness%20Linux%20Easy.md)|[]()|[]()|[]()|
 |11. |[]()|[]()|[]()|[]()|
 |12. |[]()|[]()|[]()|[]()|
 |13. |[]()|[]()|[]()|[]()|
